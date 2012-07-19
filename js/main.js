@@ -35,7 +35,16 @@
 	function onRenderButtonClick(e) {
 		var subd = new SubdivisionContext(theModel, theViewer, gFrameBuffer);
 		
-		subd.traverse();
+		for (var i = 0;i < 9;i++) {
+			subd.traverse();
+		}
+		
+		subd.dump();
+		var cvd = document.getElementById("cv-dump");
+		var gd = cvd.getContext("2d");
+		cvd.width = gFrameBuffer.width;
+		cvd.height = gFrameBuffer.height;
+		gFrameBuffer.emit1x(gd);
 		/*
 		console.log("transform: " + JSON.stringify(theViewer.viewProjectionMatrix));
 		var Ms = subd.surfaces[5].coefficientsMatricies;
@@ -63,7 +72,7 @@
 			m2.rotationX(rX);
 			m3.mul(m1, m2);
 
-			m1.translate(0, -1, -9);
+			m1.translate(0, -1, -7.5);
 			m2.mul(m1, m3);
 
 			return m2;
