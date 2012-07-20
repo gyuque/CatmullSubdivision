@@ -10,6 +10,13 @@
 	}
 	
 	Vec4.prototype = {
+		xp3: function(v1, v2) {
+			this.x = v1.y * v2.z - v1.z * v2.y;
+			this.y = v1.z * v2.x - v1.x * v2.z;
+			this.z = v1.x * v2.y - v1.y * v2.x;
+			return this;
+		},
+		
 		// dot product ignoring w
 		dp3: function(v)	{
 			return this.x*v.x + this.y*v.y + this.z*v.z;
@@ -25,7 +32,7 @@
 		},
 		
 		normalize3: function() {
-			var n = this.norm();
+			var n = this.norm3();
 			if (n != 0)
 			{
 				this.x /= n;
@@ -121,6 +128,18 @@
 
 			this._11 =  Math.cos(a);  this._13 = Math.sin(a);
 			this._31 = -Math.sin(a);  this._33 = Math.cos(a);
+			
+			return this;
+		},
+
+		rotationZ: function(a) {
+			                            this._13 = 0; this._14 = 0;
+			                            this._23 = 0; this._24 = 0;
+			this._31 = 0; this._32 = 0; this._33 = 1; this._34 = 0;
+			this._41 = 0; this._42 = 0; this._43 = 0; this._44 = 1;
+
+			this._11 = Math.cos(a);  this._12 = -Math.sin(a);
+			this._21 = Math.sin(a);  this._22 =  Math.cos(a);
 			
 			return this;
 		},

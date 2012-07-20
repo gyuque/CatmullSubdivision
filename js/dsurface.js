@@ -1,7 +1,11 @@
 (function(aGlobal) {
 	'use strict';
+	var vLight;
 
 	function SubdivisionContext(sourceModel, viewer, fb) {
+		vLight = new Vec4(-1, 1, -0.5);
+		vLight.normalize3();
+		
 		this.viewer = viewer;
 		this.surfaces = [];
 		this.targetFrameBuffer = fb;
@@ -38,14 +42,23 @@
 		},
 		
 		traverse: function() {
-			var ls = this.surfaces;
+			var ls = activeNodes;
 			var len = ls.length;
 			var needMore = false;
+			var TMAX = 2000;
+			var dcount = 0;
+				
 			for (var i = 0;i < len;i++) {
-				if (ls[i].traverse(this.viewport, this.targetFrameBuffer)) {
+				var nd = ls[i];
+				if (nd && !nd.terminated) {
+					nd.owner.subdivide(nd, this.viewport, this.targetFrameBuffer);
 					needMore = true;
+					if (++dcount >= TMAX){break;}
 				}
 			}
+			
+			
+			return needMore;
 		},
 		
 		dump: function() {
@@ -65,6 +78,7 @@
 	function DSurface() {
 		this.root = null;
 		this.nodes = [];
+		this.tmpNodes = [];
 		this.disposedNodes = [];
 		this.coefficientsMatricies = {
 			x: new M44(),
@@ -81,22 +95,27 @@
 	}
 	
 	DSurface.prototype = {
-		traverse: function(viewport, frameBuffer) {
+		
+		compressList: function() {
+			var tls = this.tmpNodes;
+			tls.length = 0;
+			
 			var ls = this.nodes;
 			var len = ls.length;
-			var needMore = false;
-			var TMAX = 200;
-			var dcount = 0;
-			
-			for (var i = 0;i < len;i++) {
+			var i;
+			for (i = 0;i < len;i++) {
 				var nd = ls[i];
-				if (nd && nd.isLeaf() && nd.hasSurface() && !nd.terminated) {
-					this.subdivide(nd, viewport, frameBuffer);
-					if (++dcount >= TMAX){break;}
+				if (nd) {
+					tls.push(nd);
 				}
 			}
 			
-			return true;
+			len = tls.length;
+			ls.length = len;
+			for (i = 0;i < len;i++) {
+				ls[i] = tls[i];
+				ls[i].index = i;
+			}
 		},
 		
 		dump: function(fb) {
@@ -113,8 +132,14 @@
 
 						fb.setPixel(x, y, 255, 255, 255);
 					} else {
-						if (nd.hasSurface())
-							++ntCount;
+						if (nd.bounds) {
+							var x = (nd.bounds.xmin + nd.bounds.xmax) >> 1;
+							var y = (nd.bounds.ymin + nd.bounds.ymax) >> 1;
+
+							fb.setPixel(x, y, 255, 25, 0);
+							
+						}
+						++ntCount;
 					}
 				}
 			}
@@ -136,29 +161,27 @@
 		
 		setSubdivisionRegisters: function() {
 			var nd = this.root;
-			this.setSubdivisionRegisterOnNode(nd.vNW, nd.rNW);
-			this.setSubdivisionRegisterOnNode(nd.vNE, nd.rNE);
-			this.setSubdivisionRegisterOnNode(nd.vSW, nd.rSW);
-			this.setSubdivisionRegisterOnNode(nd.vSE, nd.rSE);
+			this.setSubdivisionRegisterOnNode(nd.rNW, 0, 0);
+			this.setSubdivisionRegisterOnNode(nd.rNE, 1, 0);
+			this.setSubdivisionRegisterOnNode(nd.rSW, 0, 1);
+			this.setSubdivisionRegisterOnNode(nd.rSE, 1, 1);
 		},
 
-		setSubdivisionRegisterOnNode: function(node, outRegisterSet) {
-			this.setSubdivisionRegisterOfComponent(node, 'x', outRegisterSet.x);
-			this.setSubdivisionRegisterOfComponent(node, 'y', outRegisterSet.y);
-			this.setSubdivisionRegisterOfComponent(node, 'z', outRegisterSet.z);
-			this.setSubdivisionRegisterOfComponent(node, 'w', outRegisterSet.w);
+		setSubdivisionRegisterOnNode: function(outRegisterSet, u, v) {
+			this.setSubdivisionRegisterOfComponent('x', outRegisterSet.x, u, v);
+			this.setSubdivisionRegisterOfComponent('y', outRegisterSet.y, u, v);
+			this.setSubdivisionRegisterOfComponent('z', outRegisterSet.z, u, v);
+			this.setSubdivisionRegisterOfComponent('w', outRegisterSet.w, u, v);
 		},
 		
-		setSubdivisionRegisterOfComponent: function(node, component, outRegister) {
+		setSubdivisionRegisterOfComponent: function(component, outRegister, u, v) {
 			if (!_tmpVec4) {_tmpVec4 = new Vec4();}
 			var M = this.coefficientsMatricies[component];
 			
 			// u-v coordinate of specified node
-			var u = node.u;
 			var u2 = u * u;
 			var u3 = u2 * u;
 			
-			var v = node.v;
 			var v2 = v * v;
 			var v3 = v2 * v;
 			
@@ -199,37 +222,7 @@
 		},
 
 		generateInitialNodes: function() {
-			this.root = this.requestNode(0.5, 0.5);
-			
-			this.root.vNW = this.requestNode(0, 0);
-			this.root.vNE = this.requestNode(1, 0);
-			this.root.vSW = this.requestNode(0, 1);
-			this.root.vSE = this.requestNode(1, 1);
-		},
-		
-		requestNode: function(u, v) {
-			if (this.disposedNodes.length > 0) {
-				var reusedNode = this.disposedNodes.pop();
-				//var oldIndex = reusedNode.index;
-				//this.nodes[oldIndex] = reusedNode;
-				reusedNode.init(u, v);
-				
-				reusedNode.index = this.nodes.length;
-				this.nodes.push(reusedNode);
-				
-				return reusedNode;
-			}
-			
-			var n = new DSNode(u, v);
-			n.index = this.nodes.length;
-			this.nodes.push(n);
-			return n;
-		},
-		
-		disposeNode: function(n) {
-			if (n == this.root) {this.root = null;}
-			this.nodes[n.index] = null;
-			this.disposedNodes.push(n);
+			this.root = requestNode(this);
 		},
 		
 		subdivide: function(centerNode, viewport, frameBuffer) {
@@ -237,71 +230,43 @@
 				throw "Node is already subdivided.";
 			}
 			
-			// Generate "middle of edge" nodes
-			var west  = this.requestNode(centerNode.vNW.u, midp(centerNode.vNW.v, centerNode.vSW.v));
-			var east  = this.requestNode(centerNode.vNE.u, midp(centerNode.vNE.v, centerNode.vSE.v));
-			var north = this.requestNode(midp(centerNode.vNW.u, centerNode.vNE.u), centerNode.vNW.v);
-			var south = this.requestNode(midp(centerNode.vSW.u, centerNode.vSE.u), centerNode.vSW.v);
-			
 			// Generate "center of child surface" nodes
-			centerNode.cNW = this.requestNode(midp(west.u, centerNode.u), midp(north.v, centerNode.v));
-			centerNode.cNE = this.requestNode(midp(east.u, centerNode.u), midp(north.v, centerNode.v));
-			centerNode.cSW = this.requestNode(midp(west.u, centerNode.u), midp(south.v, centerNode.v));
-			centerNode.cSE = this.requestNode(midp(east.u, centerNode.u), midp(south.v, centerNode.v));
-			
-			// Set vertices on child nodes
-			centerNode.cNW.vNW = centerNode.vNW;
-			centerNode.cNW.vSW = west;
-			centerNode.cNW.vNE = north;
-			centerNode.cNW.vSE = centerNode;
-			
-			centerNode.cNE.vNE = centerNode.vNE;
-			centerNode.cNE.vSE = east;
-			centerNode.cNE.vNW = north;
-			centerNode.cNE.vSW = centerNode;
-			
-			centerNode.cSW.vSW = centerNode.vSW;
-			centerNode.cSW.vNW = west;
-			centerNode.cSW.vSE = south;
-			centerNode.cSW.vNE = centerNode;
-			
-			centerNode.cSE.vSE = centerNode.vSE;
-			centerNode.cSE.vNE = east;
-			centerNode.cSE.vSW = south;
-			centerNode.cSE.vNW = centerNode;
-			
-			
+			var cNW = requestNode(this);
+			var cNE = requestNode(this);
+			var cSW = requestNode(this);
+			var cSE = requestNode(this);
+	
 			// Calculate register-square of child nodes
 			this.calcSubdividedRegisters(centerNode, 'x');
-			this.copySubdividedRegisters(centerNode, 'x');
+			this.copySubdividedRegisters(centerNode, 'x', cNW, cNE, cSW, cSE);
 
 			this.calcSubdividedRegisters(centerNode, 'y');
-			this.copySubdividedRegisters(centerNode, 'y');
+			this.copySubdividedRegisters(centerNode, 'y', cNW, cNE, cSW, cSE);
 
 			this.calcSubdividedRegisters(centerNode, 'z');
-			this.copySubdividedRegisters(centerNode, 'z');
+			this.copySubdividedRegisters(centerNode, 'z', cNW, cNE, cSW, cSE);
 
 			this.calcSubdividedRegisters(centerNode, 'w');
-			this.copySubdividedRegisters(centerNode, 'w');
+			this.copySubdividedRegisters(centerNode, 'w', cNW, cNE, cSW, cSE);
 			
-			// Check fragment size
+			// Termination
 			
-			centerNode.cNW.calcBounds(viewport);
-			centerNode.cNE.calcBounds(viewport);
-			centerNode.cSW.calcBounds(viewport);
-			centerNode.cSE.calcBounds(viewport);
+			cNW.calcBounds(viewport);
+			cNE.calcBounds(viewport);
+			cSW.calcBounds(viewport);
+			cSE.calcBounds(viewport);
 			
-			centerNode.cNW.checkTermination(viewport);
-			centerNode.cNE.checkTermination(viewport);
-			centerNode.cSW.checkTermination(viewport);
-			centerNode.cSE.checkTermination(viewport);
+			cNW.checkTermination(viewport);
+			cNE.checkTermination(viewport);
+			cSW.checkTermination(viewport);
+			cSE.checkTermination(viewport);
 			
-			//this.disposeNode(centerNode);
+			disposeNode(centerNode);
 			
-			this.outputTerminatedNode(centerNode.cNW, frameBuffer);
-			this.outputTerminatedNode(centerNode.cNE, frameBuffer);
-			this.outputTerminatedNode(centerNode.cSW, frameBuffer);
-			this.outputTerminatedNode(centerNode.cSE, frameBuffer);
+			this.outputTerminatedNode(cNW, frameBuffer);
+			this.outputTerminatedNode(cNE, frameBuffer);
+			this.outputTerminatedNode(cSW, frameBuffer);
+			this.outputTerminatedNode(cSE, frameBuffer);
 			
 			// console.log([west,east,north,south].join("\n"));
 			// console.log([centerNode.cNW, centerNode.cNE, centerNode.cSW, centerNode.cSE].join("\n"));
@@ -312,9 +277,14 @@
 				var x = (nd.bounds.xmin + nd.bounds.xmax) >> 1;
 				var y = (nd.bounds.ymin + nd.bounds.ymax) >> 1;
 
-				frameBuffer.setPixel(x, y, 255, 255, 255);
+				var dp = 0.6 + nd.calcLighting(vLight.x, vLight.y, vLight.z) * 0.4;
+				var i = (dp*dp) * 255;
+				if (i < 0) {i=0;}
+				if (i > 255) {i=255;}
 
-				this.disposeNode(nd);
+				frameBuffer.setPixel(x, y, nd.bounds.z, i, i, i);
+
+				disposeNode(nd);
 			}
 		},
 		
@@ -325,13 +295,8 @@
 			childRegister.Cg = parentRegister.Cg / 16;
 		},
 		
-		copySubdividedRegisters: function(parentNode, c /* component name */ ) {
+		copySubdividedRegisters: function(parentNode, c /* component name */ , cNW, cNE, cSW, cSE) {
 			var S = this.subdividedRegisters;
-			
-			var cNW = parentNode.cNW;
-			var cNE = parentNode.cNE;
-			var cSW = parentNode.cSW;
-			var cSE = parentNode.cSE;
 
 			cNW.rNW[c].cp(S[0]); cNW.rNE[c].cp(S[1]);  cNE.rNW[c].cp(S[1]); cNE.rNE[c].cp(S[2]);
 			cNW.rSW[c].cp(S[3]); cNW.rSE[c].cp(S[4]);  cNE.rSW[c].cp(S[4]); cNE.rSE[c].cp(S[5]);
@@ -413,8 +378,8 @@
 		}
 	};
 	
-	function DSNode(u, v) {
-		this.init(u, v);
+	function DSNode(owner) {
+		this.init(owner);
 
 		// Subdivision registers
 		this.rNW = new SubdivisionRegisterSet();
@@ -424,38 +389,58 @@
 	}
 	
 	DSNode.prototype = {
-		init: function(u, v) {
+		init: function(owner) {
+			this.owner = owner;
+			
 			this.index = -1;
-			this.u = u;
-			this.v = v;
 			this.terminated = false;
 			this.bounds = null;
-
-			// Vertex nodes
-			this.vNW = null;
-			this.vNE = null;
-			this.vSW = null;
-			this.vSE = null;
-
-			// Child (center) nodes
-			this.cNW = null;
-			this.cNE = null;
-			this.cSW = null;
-			this.cSE = null;
 		},
+		
+		calcLighting: (function() {
+			var v1 = null;
+			var v2 = null;
+			var vN = null;
+			
+			return function(lx, ly, lz) {
+				if (!v1){v1 = new Vec4();}
+				if (!v2){v2 = new Vec4();}
+				if (!vN){vN = new Vec4();}
+
+				var rs1 = this.rNW;
+				var rs2 = this.rNE;
+				var rs3 = this.rSE;
+
+				v1.x = rs2.x.f - rs1.x.f;
+				v1.y = rs2.y.f - rs1.y.f;
+				v1.z = rs2.z.f - rs1.z.f;
+
+				v2.x = rs3.x.f - rs2.x.f;
+				v2.y = rs3.y.f - rs2.y.f;
+				v2.z = rs3.z.f - rs2.z.f;
+				
+				vN.xp3(v1, v2).normalize3();
+				
+				v1.x = lx;
+				v1.y = ly;
+				v1.z = lz;
+				return vN.dp3(v1);
+			};
+		})(),
 		
 		calcBounds: function(viewport) {
 			var xmin = 9999;
 			var ymin = 9999;
 			var xmax = -9999;
 			var ymax = -9999;
-			var sx, sy, rs;
+			var sx, sy, rs, z = 0;
 			
 			// written as inline for speed
 			
 			rs = this.rNW;
 			sx = rs.x.f / rs.w.f;
 			sy = rs.y.f / rs.w.f;
+			z += rs.z.f / rs.w.f;
 				
 			if  (sx > xmax){xmax = sx;}
 			if  (sy > ymax){ymax = sy;}
@@ -465,6 +450,7 @@
 			rs = this.rNE;
 			sx = rs.x.f / rs.w.f;
 			sy = rs.y.f / rs.w.f;
+			z += rs.z.f / rs.w.f;
 				
 			if  (sx > xmax){xmax = sx;}
 			if  (sy > ymax){ymax = sy;}
@@ -474,6 +460,7 @@
 			rs = this.rSW;
 			sx = rs.x.f / rs.w.f;
 			sy = rs.y.f / rs.w.f;
+			z += rs.z.f / rs.w.f;
 				
 			if  (sx > xmax){xmax = sx;}
 			if  (sy > ymax){ymax = sy;}
@@ -483,6 +470,7 @@
 			rs = this.rSE;
 			sx = rs.x.f / rs.w.f;
 			sy = rs.y.f / rs.w.f;
+			z += rs.z.f / rs.w.f;
 				
 			if  (sx > xmax){xmax = sx;}
 			if  (sy > ymax){ymax = sy;}
@@ -501,7 +489,8 @@
 				xmin: xmin, ymin: ymax,
 				xmax: xmax, ymax: ymin,
 				w: xmax - xmin,
-				h: ymin - ymax
+				h: ymin - ymax,
+				z: z / 4
 			};
 			
 			return this.bounds;
@@ -509,14 +498,14 @@
 		
 		checkTermination: function() {
 			var bd = this.bounds;
-			if (bd.w >= 1 || bd.h >= 1) {
+			if (bd.w > 1 || bd.h > 1) {
 				return false;
 			}
-			
+			/*
 			if (this.countCoveringPoints() >= 2) {
 				return false;
 			}
-
+*/
 			this.terminated = true;
 			return true;
 		},
@@ -577,14 +566,6 @@
 		
 		toString: function() {
 			return "DSNode<"+this.u+", "+this.v+">";
-		},
-		
-		isLeaf: function() {
-			return !this.cNW;
-		},
-		
-		hasSurface: function() {
-			return !!this.vNW;
 		},
 		
 		generateSubdivisionRegisterSet: function() {
@@ -659,9 +640,50 @@
 
 		return true;
 	}
-
+	
+	var activeNodes = [];
+	var disposedPool = [];
+	function requestNode(owner) {
+		if (disposedPool.length > 0) {
+			var reusedNode = disposedPool.pop();
+			var oldIndex = reusedNode.index;
+			activeNodes[oldIndex] = reusedNode;
+			reusedNode.init(owner);
+			
+			reusedNode.index = oldIndex;
+			//this.nodes.push(reusedNode);
+			
+			return reusedNode;
+		}
+		
+		var n = new DSNode(owner);
+		n.index = activeNodes.length;
+		activeNodes.push(n);
+		return n;
+	}
+		
+	function disposeNode(n) {
+		if (n == n.owner.root) {n.owner.root = null;}
+		n.owner = null;
+		activeNodes[n.index] = null;
+		disposedPool.push(n);
+	}
+	
+	function clearSubdivisionNodes() {
+		var ls = activeNodes;
+		var len = ls.length;
+		var i;
+		for (i = 0;i < len;i++) {
+			var nd = ls[i];
+			if (nd) {
+				disposeNode(nd);
+			}
+		}
+	}
+	
 	function midp(a, b) {return (a+b)*0.5}
 	var _tmpVec4 = null;
 	aGlobal.SubdivisionContext = SubdivisionContext;
 	aGlobal.DSurface = DSurface;
+	aGlobal.clearSubdivisionNodes = clearSubdivisionNodes;
 })(window);

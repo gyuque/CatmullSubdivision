@@ -3,14 +3,16 @@
 	var theViewer = null;
 	var theModel = null;
 	
-	var OVER_SAMPLING = 2;
+	var OVER_SAMPLING = 1;
 	var FBWIDTH = 512;
 	var FBHEIGHT = 512;
 	var gFrameBuffer = null;
+	var gRenderButton = null;
+	var gBusy = false;
 	
 	var gViewStatus = {
 		rY: 0,
-		rX: -0.9
+		rX: -0.4
 	};
 
 	aGlobal.launch = function() {
@@ -24,27 +26,69 @@
 		theViewer.canvas.addEventListener("mousemove", onMouseMove, false);
 		
 		redrawPreview();
-		document.getElementById("render-trigger").addEventListener("click", onRenderButtonClick, false);
+		gRenderButton = document.getElementById("render-trigger");
+		gRenderButton.addEventListener("click", onRenderButtonClick, false);
 	};
 	
 	function onMouseMove(e) {
-		gViewStatus.rY = e.clientX * 0.01;
-		redrawPreview();
+		if (!ActionButton.clearMode && !gBusy) {
+			gViewStatus.rY = e.clientX * 0.02 - 0.1;
+			redrawPreview();
+		}
 	}
 	
-	function onRenderButtonClick(e) {
-		var subd = new SubdivisionContext(theModel, theViewer, gFrameBuffer);
+	var ActionButton = {
+		clearMode: false,
+		setRender: function() {
+			gRenderButton.innerHTML = "Render";
+			gRenderButton.disabled = false;
+			this.clearMode = false;
+		},
+
+		setClear: function() {
+			gRenderButton.innerHTML = "Clear";
+			gRenderButton.disabled = false;
+			this.clearMode = true;
+		},
 		
-		for (var i = 0;i < 9;i++) {
-			subd.traverse();
+		setDisabled: function() {
+			gRenderButton.innerHTML = "Wait...";
+			gRenderButton.disabled = true;
+		}
+	};
+
+	function onRenderButtonClick(e) {
+		if (ActionButton.clearMode) {
+			ActionButton.setRender();
+			redrawPreview();
+		} else {
+			startRendering();
+		}
+	}
+	
+	function startRendering() {
+		ActionButton.setDisabled();
+		
+		clearSubdivisionNodes();
+		var subd = new SubdivisionContext(theModel, theViewer, gFrameBuffer);
+		var tickCount = 0;
+				
+		function tick() {
+			var needMore = subd.traverse();
+			gFrameBuffer.emitToCanvas(theViewer.g);
+			if (needMore && ++tickCount < 1000) {
+				setTimeout(tick, 1);
+			} else {
+				gBusy = false;
+				ActionButton.setClear();
+			}
 		}
 		
-		subd.dump();
-		var cvd = document.getElementById("cv-dump");
-		var gd = cvd.getContext("2d");
-		cvd.width = gFrameBuffer.width;
-		cvd.height = gFrameBuffer.height;
-		gFrameBuffer.emit1x(gd);
+		gFrameBuffer.clearColorBuffer(0, 0, 0);
+		gFrameBuffer.clearZBuffer(1);
+		gBusy = true;
+		setTimeout(tick, 1);
+
 		/*
 		console.log("transform: " + JSON.stringify(theViewer.viewProjectionMatrix));
 		var Ms = subd.surfaces[5].coefficientsMatricies;
@@ -56,7 +100,7 @@
 	}
 	
 	function redrawPreview() {
-		var M = makeViewMatrix(gViewStatus.rX, gViewStatus.rY);
+		var M = makeViewMatrix(gViewStatus.rX - gViewStatus.rY*0.2, gViewStatus.rY);
 		theViewer.viewMatrix.copyFrom(M);
 		theViewer.updateTransforms();
 		theViewer.drawPreview(theModel);
@@ -67,12 +111,12 @@
 		var m2 = new M44();
 		var m3 = new M44();
 		
-		return function(rX, rY) {
-			m1.rotationY(rY);
-			m2.rotationX(rX);
+		return function(rX, rZ) {
+			m1.rotationX(rX);
+			m2.rotationZ(rZ);
 			m3.mul(m1, m2);
 
-			m1.translate(0, -1, -7.5);
+			m1.translate(0, -1, -7.5 + rZ*0.2);
 			m2.mul(m1, m3);
 
 			return m2;

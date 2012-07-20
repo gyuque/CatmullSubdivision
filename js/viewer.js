@@ -59,7 +59,7 @@
 			var cw = this.width / 2;
 			var ch = this.height / 2;
 
-			var DIVS = 8;
+			var DIVS = 6;
 			for (var y = 0;y <= DIVS;y++) {
 				for (var x = 0;x <= DIVS;x++) {
 					var u = x / DIVS;

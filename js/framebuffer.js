@@ -13,15 +13,45 @@
 			this.zBuffer = new Float32Array(this.width * this.height);
 		},
 		
-		setPixel: function(x, y, r, g, b) {
-			y <<= 0;
-			var pos = (this.width << 2) * y + (x << 2);
-			this.colorBuffer[pos++] = r;
-			this.colorBuffer[pos++] = g;
-			this.colorBuffer[pos  ] = b;
+		clearZBuffer: function(z) {
+			var b = this.zBuffer;
+			var len = this.width * this.height;
+			for (var i = 0;i < len;i++) {
+				b[i] = z;
+			}
 		},
 		
-		emit1x: function(g) {
+		clearColorBuffer: function(r, g, b) {
+			var b = this.colorBuffer;
+			var len = this.width * this.height;
+			var pos = 0;
+			for (var i = 0;i < len;i++) {
+				b[pos++] = r;
+				b[pos++] = g;
+				b[pos++] = b;
+				++pos;
+			}			
+		},
+		
+		setPixel: function(x, y, z, r, g, b) {
+			var w = this.width;
+			var h = this.height;
+			if (x < 0 || y < 0 || x >= w || y >= h) {return;}
+			
+			var zpos = w * y + x;
+			var zb = this.zBuffer;
+			if (zb[zpos] < z) {return;}
+			zb[zpos] = z;
+			
+			y <<= 0;
+			var pos = zpos << 2;
+			var cb = this.colorBuffer;
+			cb[pos++] = r;
+			cb[pos++] = g;
+			cb[pos  ] = b;
+		},
+		
+		emitToCanvas: function(g) {
 			var w = this.width;
 			var h = this.height;
 			var imageData = g.getImageData(0, 0, w, h);
