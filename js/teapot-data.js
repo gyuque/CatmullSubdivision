@@ -1,3 +1,8 @@
+/*
+ "Utah teapot" Bezier patches
+ from http://www.sjbaker.org/teapot/teaset.tgz
+*/
+
 var BEZIER_PATCHES = {
  patches: [
  

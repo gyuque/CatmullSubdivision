@@ -1,3 +1,24 @@
+/*
+Demonstration of Catmull's Subdivision Based Rendering
+-------------------------------------------------------
+Copyright (c) 2012 Satoshi Ueyama
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this 
+software and associated documentation files (the "Software"), to deal in the Software 
+without restriction, including without limitation the rights to use, copy, modify, merge, 
+publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons
+to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or
+substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
+BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+*/
+
 (function(aGlobal) {
 	'use strict';
 	var theViewer = null;
@@ -9,6 +30,7 @@
 	var gFrameBuffer = null;
 	var gRenderButton = null;
 	var gBusy = false;
+	var gStatusArea;
 	
 	var gViewStatus = {
 		rY: 0,
@@ -16,7 +38,7 @@
 	};
 
 	aGlobal.launch = function() {
-		console.log("tt");
+		gStatusArea = document.getElementById("status-area");
 		gFrameBuffer = new FrameBuffer(FBWIDTH * OVER_SAMPLING, FBHEIGHT * OVER_SAMPLING);
 		theModel = new BezierPatchModel(BEZIER_PATCHES);
 		theViewer = new Viewer( document.getElementById("cv") );
@@ -32,7 +54,8 @@
 	
 	function onMouseMove(e) {
 		if (!ActionButton.clearMode && !gBusy) {
-			gViewStatus.rY = e.clientX * 0.02 - 0.1;
+			var ox = theViewer.canvas.offsetLeft + theViewer.canvas.parentNode.offsetLeft;
+			gViewStatus.rY = (e.clientX - ox) * 0.02 - 0.1;
 			redrawPreview();
 		}
 	}
@@ -76,6 +99,7 @@
 		function tick() {
 			var needMore = subd.traverse();
 			gFrameBuffer.emitToCanvas(theViewer.g);
+			gStatusArea.innerHTML = getNodeGenerateCount()+" patches generated";
 			if (needMore && ++tickCount < 1000) {
 				setTimeout(tick, 1);
 			} else {

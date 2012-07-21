@@ -13,9 +13,66 @@
 		<script type="text/javascript" src="./js/main.js"></script>
 		<script type="text/javascript" src="./js/dsurface.js"></script>
 		<script type="text/javascript" src="./js/viewer.js"></script>
+		
+		<link rel="shortcut icon" href="http://gyu.que.jp/private/ushiicon.gif"></link>
+		<link rel="stylesheet" href="http://dl.dropbox.com/u/103789/ushiroad.css" type="text/css"></link>
+		<title>Reimplementation of Catmull's Subdivision Algorithm - ushiroad</title>
+
+		<style type="text/css">
+		#runtest-box {
+			text-align: center;
+			position: relative;
+			width: 512px;
+			margin-left: auto;
+			margin-right: auto;
+		}
+		
+		h2 {
+			border: none;
+			text-align: center;
+			font-size: 110%;
+		}
+		
+		button {
+			margin-top: 9px;
+			margin-bottom: 4px;
+			outline: 3px solid #4d1;
+		}
+		
+		h3 {
+			clear: left;
+		}
+		</style>
 	</head>
 	<body onload="void launch()">
-		<canvas id="cv"></canvas><br />
-		<button id="render-trigger" style="width: 512px;">Render</button>
+		<h1><a href="http://ushiroad.com/"><img src="http://30.media.tumblr.com/tumblr_lvskwk80bG1qz5devo6_r1_250.png" alt="ushiroad" /></a>Reimplementation of Catmull's Subdivision Algorithm</h1>
+		<div class="ac-content">
+			<h2>Reimplementation of Catmull's Subdivision Algorithm<br />&mdash; The dawn of computer graphics &mdash;</h2>
+			<div style="font-size: 13px; float: left; width: 212px; height: 280px; text-align: center"><img alt="face" src="catmull.jpg" /><br />Edwin Catmull, Ph.D<br /><a href="http://www.ieee.org/about/awards/bios/vonneumann_recipients.html#sect7">from IEEE</a></div>
+			
+			<p>Dr. Edwin Catmull is known as a co-founder of Pixar Animation Studios and his Dr. thesis is known for introducing z-buffer and texture mapping, which are common techniques in modern computer graphics.</p>
+			<p>While his thesis is famed for z-buffer and texture mapping, its "main dish" is a non-polygon based rasterization algorithm for bicubic surfaces. In 1974, when his thesis was published, he implemented the algorithm on PDP-10 and it took fifteen minutes to render single "Klein bottle" model.</p>
+			<p>I reimplemented that algorithm on Javascript and you can run it on this page. Now you'll get results in about ten seconds on a laptop computer.</p>
+			<p>Note that "Utah teapot" model used in this demo is not included in Catmull's thesis because the teapot model was created in 1975, after Catmull published his thesis.</p>
+
+			<h3>References</h3>
+			<ul>
+				<li><a href="http://www.pixartouchbook.com/blog/2009/1/4/ed-catmulls-phd-thesis.html">Ed Catmull's Ph.D. thesis</a> - See the pdf for more about rendering algorithm.</li>
+				<li><a href="http://nerdplusart.com/first-3d-rendered-film-from-1972-and-my-visit-to-pixar">First Digital 3D Rendered Film (from 1972) and My Visit to Pixar</a></li>
+			</ul>
+			
+			<h2>Catmull の曲面分割アルゴリズムの再実装<br />&mdash; コンピュータグラフィックスの夜明け &mdash;</h2>
+
+<p>Edwin Catmull 博士は Pixar Animation Studios の創業者の一人として有名であり、彼の博士論文は、現代のコンピュータグラフィックスでは一般的な技術であるZバッファとテクスチャマッピングを発案したことで知られています。</p>
+<p>彼の論文はZバッファとテクスチャマッピングで有名ですが、実はその"メインディッシュ"は三次曲面を非ポリゴンベースでラスタライズするアルゴリズムについてでした。1974年に Catmull が論文を提出した時、このアルゴリズムをPDP-10で実装していましたが、この時は「クラインの壷」のモデルを一つレンダリングするのに15分かかっていました。</p>
+<p>このページでは、このアルゴリズムの Javascript による再実装を実行できます。今や、ラップトップコンピュータでも10秒程度で計算が終わってしまうでしょう。</p>
+<p>尚、このデモで使用している「Utah teapot」モデルが作られたのは1975年であるため、Catmull の論文には登場しません。</p>
+			<div id="runtest-box">
+				<canvas id="cv"></canvas><br />
+				<button id="render-trigger" style="width: 512px;">Render</button>
+				<div style="width: 512px; padding: 2px 0; text-align: center;" id="status-area">* This script requires typed array support.</div>
+			</div>
+		</div>
+		<address>2012-07-20 <a href="https://plus.google.com/114680087902610737176?rel=author">ushiroad</a></address>
 	</body>
 </html>

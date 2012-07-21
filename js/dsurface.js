@@ -1,3 +1,24 @@
+/*
+Implementation of Catmull's Subdivision Based Rendering
+-------------------------------------------------------
+Copyright (c) 2012 Satoshi Ueyama
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this 
+software and associated documentation files (the "Software"), to deal in the Software 
+without restriction, including without limitation the rights to use, copy, modify, merge, 
+publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons
+to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or
+substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
+BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+*/
+
 (function(aGlobal) {
 	'use strict';
 	var vLight;
@@ -59,19 +80,6 @@
 			
 			
 			return needMore;
-		},
-		
-		dump: function() {
-			var ls = this.surfaces;
-			var len = ls.length;
-			var needMore = false;
-			
-			var sum = 0;
-			for (var i = 0;i < len;i++) {
-				sum += ls[i].dump(this.targetFrameBuffer);
-			}
-			
-			console.log("-----\n"+sum+" nodes total.");
 		}
 	};
 
@@ -95,60 +103,6 @@
 	}
 	
 	DSurface.prototype = {
-		
-		compressList: function() {
-			var tls = this.tmpNodes;
-			tls.length = 0;
-			
-			var ls = this.nodes;
-			var len = ls.length;
-			var i;
-			for (i = 0;i < len;i++) {
-				var nd = ls[i];
-				if (nd) {
-					tls.push(nd);
-				}
-			}
-			
-			len = tls.length;
-			ls.length = len;
-			for (i = 0;i < len;i++) {
-				ls[i] = tls[i];
-				ls[i].index = i;
-			}
-		},
-		
-		dump: function(fb) {
-			var ls = this.nodes;
-			var len = ls.length;
-			var ntCount = 0;
-
-			for (var i = 0;i < len;i++) {
-				var nd = ls[i];
-				if (nd) {
-					if (nd.terminated) {
-						var x = (nd.bounds.xmin + nd.bounds.xmax) >> 1;
-						var y = (nd.bounds.ymin + nd.bounds.ymax) >> 1;
-
-						fb.setPixel(x, y, 255, 255, 255);
-					} else {
-						if (nd.bounds) {
-							var x = (nd.bounds.xmin + nd.bounds.xmax) >> 1;
-							var y = (nd.bounds.ymin + nd.bounds.ymax) >> 1;
-
-							fb.setPixel(x, y, 255, 25, 0);
-							
-						}
-						++ntCount;
-					}
-				}
-			}
-			
-			console.log(len+" Nodes", ntCount+" (nt)");
-			
-			return len;
-		},
-		
 		setCoefficientsMatricies: function(x, y, z, w) {
 			var m = this.coefficientsMatricies;
 			m.x.copyFrom(x);
@@ -215,10 +169,7 @@
 			                             (3 * M._12 * u + M._22)
 			                     );
 			
-			outRegister.f = f;
-			outRegister.g = g;
-			outRegister.Cf = Cf;
-			outRegister.Cg = Cg;
+			outRegister.setAll(f, g, Cf, Cg);
 		},
 
 		generateInitialNodes: function() {
@@ -288,13 +239,6 @@
 			}
 		},
 		
-		calcChildCornerRegister: function(parentRegister, childRegister) {
-			childRegister.f  = parentRegister.f;
-			childRegister.g  = parentRegister.g / 4;
-			childRegister.Cf = parentRegister.Cf / 4;
-			childRegister.Cg = parentRegister.Cg / 16;
-		},
-		
 		copySubdividedRegisters: function(parentNode, c /* component name */ , cNW, cNE, cSW, cSE) {
 			var S = this.subdividedRegisters;
 
@@ -307,20 +251,20 @@
 		
 		calcSubdividedRegisters: function(parentNode, component) {
 			var efgh = parentNode.rNW[component];
-			var e = efgh.f;   var f = efgh.g;
-			var g = efgh.Cf;  var h = efgh.Cg;
+			var e = efgh.f();   var f = efgh.g();
+			var g = efgh.Cf();  var h = efgh.Cg();
 
 			var abcd = parentNode.rSW[component];
-			var a = abcd.f;   var b = abcd.g;
-			var c = abcd.Cf;  var d = abcd.Cg;
+			var a = abcd.f();   var b = abcd.g();
+			var c = abcd.Cf();  var d = abcd.Cg();
 
 			var ijkl = parentNode.rNE[component];
-			var i = ijkl.f;   var j = ijkl.g;
-			var k = ijkl.Cf;  var l = ijkl.Cg;
+			var i = ijkl.f();   var j = ijkl.g();
+			var k = ijkl.Cf();  var l = ijkl.Cg();
 			
 			var mnop = parentNode.rSE[component];
-			var m = mnop.f;   var n = mnop.g;
-			var o = mnop.Cf;  var p = mnop.Cg;
+			var m = mnop.f();   var n = mnop.g();
+			var o = mnop.Cf();  var p = mnop.Cg();
 			
 			var S = this.subdividedRegisters;
 			S[0].setAll(
@@ -411,13 +355,13 @@
 				var rs2 = this.rNE;
 				var rs3 = this.rSE;
 
-				v1.x = rs2.x.f - rs1.x.f;
-				v1.y = rs2.y.f - rs1.y.f;
-				v1.z = rs2.z.f - rs1.z.f;
+				v1.x = rs2.x.f() - rs1.x.f();
+				v1.y = rs2.y.f() - rs1.y.f();
+				v1.z = rs2.z.f() - rs1.z.f();
 
-				v2.x = rs3.x.f - rs2.x.f;
-				v2.y = rs3.y.f - rs2.y.f;
-				v2.z = rs3.z.f - rs2.z.f;
+				v2.x = rs3.x.f() - rs2.x.f();
+				v2.y = rs3.y.f() - rs2.y.f();
+				v2.z = rs3.z.f() - rs2.z.f();
 				
 				vN.xp3(v1, v2).normalize3();
 				
@@ -438,9 +382,9 @@
 			// written as inline for speed
 			
 			rs = this.rNW;
-			sx = rs.x.f / rs.w.f;
-			sy = rs.y.f / rs.w.f;
-			z += rs.z.f / rs.w.f;
+			sx = rs.x.f() / rs.w.f();
+			sy = rs.y.f() / rs.w.f();
+			z += rs.z.f() / rs.w.f();
 				
 			if  (sx > xmax){xmax = sx;}
 			if  (sy > ymax){ymax = sy;}
@@ -448,9 +392,9 @@
 			if  (sy < ymin){ymin = sy;}
 			
 			rs = this.rNE;
-			sx = rs.x.f / rs.w.f;
-			sy = rs.y.f / rs.w.f;
-			z += rs.z.f / rs.w.f;
+			sx = rs.x.f() / rs.w.f();
+			sy = rs.y.f() / rs.w.f();
+			z += rs.z.f() / rs.w.f();
 				
 			if  (sx > xmax){xmax = sx;}
 			if  (sy > ymax){ymax = sy;}
@@ -458,9 +402,9 @@
 			if  (sy < ymin){ymin = sy;}
 
 			rs = this.rSW;
-			sx = rs.x.f / rs.w.f;
-			sy = rs.y.f / rs.w.f;
-			z += rs.z.f / rs.w.f;
+			sx = rs.x.f() / rs.w.f();
+			sy = rs.y.f() / rs.w.f();
+			z += rs.z.f() / rs.w.f();
 				
 			if  (sx > xmax){xmax = sx;}
 			if  (sy > ymax){ymax = sy;}
@@ -468,9 +412,9 @@
 			if  (sy < ymin){ymin = sy;}
 
 			rs = this.rSE;
-			sx = rs.x.f / rs.w.f;
-			sy = rs.y.f / rs.w.f;
-			z += rs.z.f / rs.w.f;
+			sx = rs.x.f() / rs.w.f();
+			sy = rs.y.f() / rs.w.f();
+			z += rs.z.f() / rs.w.f();
 				
 			if  (sx > xmax){xmax = sx;}
 			if  (sy > ymax){ymax = sy;}
@@ -501,67 +445,9 @@
 			if (bd.w > 1 || bd.h > 1) {
 				return false;
 			}
-			/*
-			if (this.countCoveringPoints() >= 2) {
-				return false;
-			}
-*/
+
 			this.terminated = true;
 			return true;
-		},
-		
-		countCoveringPoints: function() {
-			var bd = this.bounds;
-			var sx = Math.floor(bd.xmin) + 0.5;
-			var y = Math.floor(bd.ymin) + 0.5;
-			var xmax = bd.xmax;
-			var ymax = bd.ymax;
-
-			var rs;
-			
-			rs = this.rNW;
-			var sx1 = rs.x.f / rs.w.f;
-			var sy1 = rs.y.f / rs.w.f;
-
-			rs = this.rNE;
-			var sx2 = rs.x.f / rs.w.f;
-			var sy2 = rs.y.f / rs.w.f;
-
-			rs = this.rSW;
-			var sx3 = rs.x.f / rs.w.f;
-			var sy3 = rs.y.f / rs.w.f;
-
-			rs = this.rSE;
-			var sx4 = rs.x.f / rs.w.f;
-			var sy4 = rs.y.f / rs.w.f;
-			var count = 0;
-
-			for (;y <= ymax;y += 1){
-				for (var x = sx;x <= xmax;x += 1) {
-					if (checkTriangleInclude(
-						sx1, sy1,
-						sx2, sy2,
-						sx3, sy3,
-						x, y)) {
-						++count;
-					}
-					
-					if (checkTriangleInclude(
-								sx3, sy3,
-								sx2, sy2,
-								sx4, sy4,
-								x, y)) {
-						++count;
-					}
-					
-					if (count >= 2) {
-						console.log(count);
-						return 2;
-					}
-				}
-			}
-			
-			return count;
 		},
 		
 		toString: function() {
@@ -586,64 +472,39 @@
 	}
 	
 	function SubdivisionRegister() {
-		this.f = 1;  this.g = 1;
-		this.Cf = 1; this.Cg = 1;
+		this.a = new Float32Array(4);
 	}
 	
 	SubdivisionRegister.prototype = {
 		setAll: function(f, g, Cf, Cg) {
-			this.f = f;  this.g = g;
-			this.Cf = Cf; this.Cg = Cg;
+			this.a[0] = f;  this.a[1] = g;
+			this.a[2] = Cf; this.a[3] = Cg;
 		},
 		
+		f: function()  {return this.a[0];},
+		g: function()  {return this.a[1];},
+		Cf: function() {return this.a[2];},
+		Cg: function() {return this.a[3];},
+		
 		cp: function (r) {
-			this.f = r.f;  this.g = r.g;
-			this.Cf = r.Cf; this.Cg = r.Cg;
+			this.a[0] = r.a[0];
+			this.a[1] = r.a[1];
+			this.a[2] = r.a[2];
+			this.a[3] = r.a[3];
 		}
 	};
 
-	function checkLineCross(
-			x1, y1,
-			x2, y2,
-			x3, y3,
-			x4, y4) {
-
-		if (
-				((x1 - x2) * (y3 - y1) + (y1 - y2) * (x1 - x3)) *
-				((x1 - x2) * (y4 - y1) + (y1 - y2) * (x1 - x4)) <= 0
-			) {
-
-			if (
-					((x3 - x4) * (y1 - y3) + (y3 - y4) * (x3 - x1)) *
-	            	((x3 - x4) * (y2 - y3) + (y3 - y4) * (x3 - x2)) <= 0
-			) {
-				return true;
-			}
-		}
-
-		return false;
-	}
-	
-	function checkTriangleInclude(
-			x1, y1,
-			x2, y2,
-			x3, y3,
-
-			px, py) {
-
-		var cx = (x1+x2+x3) / 3.0;
-		var cy = (y1+y2+y3) / 3.0;
-
-		if (checkLineCross(x1,y1, x2,y2, px,py, cx,cy)) return false;
-		if (checkLineCross(x1,y1, x3,y3, px,py, cx,cy)) return false;
-		if (checkLineCross(x2,y2, x3,y3, px,py, cx,cy)) return false;
-
-		return true;
-	}
+	// Node pool
 	
 	var activeNodes = [];
 	var disposedPool = [];
+	var nodeGenerateCount = 0;
+	
+	aGlobal.getNodeGenerateCount = function() { return nodeGenerateCount; };
+	
 	function requestNode(owner) {
+		++nodeGenerateCount;
+		
 		if (disposedPool.length > 0) {
 			var reusedNode = disposedPool.pop();
 			var oldIndex = reusedNode.index;
@@ -670,6 +531,8 @@
 	}
 	
 	function clearSubdivisionNodes() {
+		nodeGenerateCount = 0;
+		
 		var ls = activeNodes;
 		var len = ls.length;
 		var i;
@@ -681,7 +544,6 @@
 		}
 	}
 	
-	function midp(a, b) {return (a+b)*0.5}
 	var _tmpVec4 = null;
 	aGlobal.SubdivisionContext = SubdivisionContext;
 	aGlobal.DSurface = DSurface;
